@@ -1173,6 +1173,9 @@ export class Dragon implements Boss, BabyOwner {
   }
 
   dispose() {
+    // 진행 중이던 공격이 만든 오브젝트(회오리 등)를 치운다 — 재도전 · 층 이동 때 남지 않게
+    this.ticks = [];
+    this.runEnds();
     for (const b of this.babies) b.dispose();
     this.babies = [];
     this.field.dispose();
