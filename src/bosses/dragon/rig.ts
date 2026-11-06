@@ -120,9 +120,9 @@ function scaleTexture(glow: boolean): THREE.CanvasTexture {
             g.stroke();
           } else {
             const hot = rnd() < 0.18;
-            g.fillStyle = hot ? 'rgba(120,32,6,0.55)' : 'rgba(0,0,0,0)';
+            g.fillStyle = hot ? 'rgba(20,90,90,0.5)' : 'rgba(0,0,0,0)';
             g.fill();
-            g.strokeStyle = hot ? 'rgba(255,150,40,0.95)' : 'rgba(255,90,20,0.55)';
+            g.strokeStyle = hot ? 'rgba(140,255,230,0.95)' : 'rgba(80,220,210,0.5)';
             g.lineWidth = hot ? 2.4 : 1.4;
             g.stroke();
           }
@@ -189,11 +189,11 @@ function armorTexture(glow: boolean): THREE.CanvasTexture {
     } else {
       // 이음매 틈(아래쪽)과 면 사이 모서리에서 새어 나오는 빛
       const hot = rnd() < 0.5;
-      g.fillStyle = hot ? 'rgba(255,120,30,0.9)' : 'rgba(255,80,20,0.55)';
+      g.fillStyle = hot ? 'rgba(110,255,225,0.9)' : 'rgba(60,210,200,0.5)';
       g.fillRect(x0 + 2, S - 9, fw - 4, 4);
-      g.fillStyle = 'rgba(255,190,80,0.8)';
+      g.fillStyle = 'rgba(210,255,245,0.8)';
       g.fillRect(x0 + 6, S - 7, fw - 12, 1.6);
-      g.fillStyle = 'rgba(255,90,20,0.35)';
+      g.fillStyle = 'rgba(80,220,210,0.3)';
       g.fillRect(x0, 0, 1.6, S);
     }
   }
@@ -210,9 +210,9 @@ function membraneTexture(): THREE.CanvasTexture {
   const H = 256;
   const { cv, g } = canvas2d(W, H);
   const gr = g.createLinearGradient(0, 0, 0, H);
-  gr.addColorStop(0, '#5a1710');
-  gr.addColorStop(0.55, '#8a2a14');
-  gr.addColorStop(1, '#b4421c');
+  gr.addColorStop(0, '#0c2436');
+  gr.addColorStop(0.55, '#14706e');
+  gr.addColorStop(1, '#4ad8c0');
   g.fillStyle = gr;
   g.fillRect(0, 0, W, H);
   let seed = 77;
@@ -220,7 +220,7 @@ function membraneTexture(): THREE.CanvasTexture {
   // 핏줄: 위(중심)에서 아래(가장자리)로 퍼지며 갈라진다
   for (let k = 0; k < 20; k++) {
     let x = (k + 0.5) * (W / 20) + (rnd() - 0.5) * 6;
-    g.strokeStyle = `rgba(40,8,6,${0.35 + rnd() * 0.3})`;
+    g.strokeStyle = `rgba(6,24,34,${0.35 + rnd() * 0.3})`;
     g.lineWidth = 1 + rnd() * 1.6;
     g.beginPath();
     g.moveTo(x, 0);
@@ -232,7 +232,7 @@ function membraneTexture(): THREE.CanvasTexture {
   }
   // 가로 힘줄 (얇게)
   for (let k = 0; k < 6; k++) {
-    g.strokeStyle = 'rgba(255,170,100,0.10)';
+    g.strokeStyle = 'rgba(180,255,240,0.12)';
     g.lineWidth = 1;
     const y = 30 + k * 36;
     g.beginPath();
@@ -421,7 +421,7 @@ export class DragonRig {
     const sc = armorTexture(false);
     const glow = armorTexture(true);
     this.disposables.push(sc, glow);
-    this.bodyMat = stdMat(0xffffff, 0xff5a14, 0.45, 0.45, true);
+    this.bodyMat = stdMat(0xffffff, 0x50ffe0, 0.45, 0.2, true);
     this.bodyMat.envMapIntensity = 0.9;
     this.bodyMat.vertexColors = true;
     this.bodyMat.map = sc;
@@ -429,12 +429,12 @@ export class DragonRig {
     this.bodyMat.emissiveIntensity = 0.45;
     const memTex = membraneTexture();
     this.disposables.push(memTex);
-    this.memMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: memTex, emissive: 0xff3a08, emissiveIntensity: 0.1, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
-    this.boneMat = stdMat(0x2b1210, 0x3a0c04, 0.6, 0.35, true);
+    this.memMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: memTex, emissive: 0x30ffc8, emissiveIntensity: 0.1, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
+    this.boneMat = stdMat(0x5a6678, 0x0a141c, 0.5, 0.5, true);
     this.eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.7, 0.4), toneMapped: false });
     this.disposables.push(this.bodyMat, this.memMat, this.boneMat, this.eyeMat);
-    const horn = stdMat(0xd8c9a4, 0x2a1a08, 0.45, 0.2, true);
-    const dark = stdMat(0x1c0c0b, 0x2a0a04, 0.6, 0.3, true);
+    const horn = stdMat(0xd4ecff, 0x1a3a4a, 0.25, 0.35, true);
+    const dark = stdMat(0x2a3444, 0x081418, 0.55, 0.4, true);
     this.disposables.push(horn, dark);
 
     /* ── 몸통 관 ── */
@@ -450,8 +450,8 @@ export class DragonRig {
         uv[v * 2] = j / M;
         uv[v * 2 + 1] = i / PLATE;
         const belly = smooth(-Math.sin(a) * 1.7 - 0.12);
-        const back = [0.66 - 0.16 * tailK, 0.12, 0.09];
-        const bel = [0.9, 0.66, 0.36];
+        const back = [0.8 - 0.1 * tailK, 0.84 - 0.1 * tailK, 0.92 - 0.08 * tailK];
+        const bel = [0.56, 0.7, 0.8];
         col[v * 3] = lerp(back[0], bel[0], belly);
         col[v * 3 + 1] = lerp(back[1], bel[1], belly);
         col[v * 3 + 2] = lerp(back[2], bel[2], belly);
@@ -482,7 +482,7 @@ export class DragonRig {
     this.nSpine = Math.floor((NR - 8) / PLATE);
     // 각진 뿔판: 아래가 넓고 뒤로 휘어 넘어간 칼날
     const spGeo = hull([[-0.34, 0, -1.3], [0.34, 0, -1.3], [-0.34, 0, 1.5], [0.34, 0, 1.5], [0, 3.0, -1.2], [0, 1.0, 1.0]]);
-    const bladeMat = stdMat(0x5a1410, 0x3a0a04, 0.42, 0.5, true);
+    const bladeMat = stdMat(0xd0dcec, 0x0c2a30, 0.35, 0.35, true);
     this.disposables.push(bladeMat);
     this.spines = new THREE.InstancedMesh(spGeo, bladeMat, this.nSpine);
     this.spines.frustumCulled = false;
@@ -507,7 +507,7 @@ export class DragonRig {
     this.group.add(this.headRoot);
 
     /* ── 날개 · 다리 · 꼬리 칼날 ── */
-    const limbArmor = stdMat(0x7a1a12, 0x4a0e04, 0.4, 0.6, true);
+    const limbArmor = stdMat(0xb8c4d6, 0x0c2a30, 0.4, 0.25, true);
     limbArmor.emissiveIntensity = 0.55;
     this.disposables.push(limbArmor);
     this.limbKit = makeLimbKit(limbArmor, dark, horn);
@@ -516,7 +516,7 @@ export class DragonRig {
     this.legs = new DragonLegs(this.group);
     this.disposables.push(this.legs);
     const blade = hull(mirror([[0, 0.14, 0], [0.55, 0.14, -0.6], [1.35, 0.1, -2.0], [0.5, 0.06, -3.6], [0, 0.04, -5.2], [0, -0.14, 0], [0.55, -0.14, -0.6], [1.35, -0.1, -2.0], [0.5, -0.06, -3.6]]));
-    this.tailBlade = new THREE.Mesh(blade, stdMat(0x1a0d0c, 0x3a0c04, 0.5, 0.5, true));
+    this.tailBlade = new THREE.Mesh(blade, stdMat(0xd0dcec, 0x0c2a30, 0.35, 0.35, true));
     this.tailBlade.castShadow = true;
     this.group.add(this.tailBlade);
     this.disposables.push(blade, this.tailBlade.material as THREE.Material);
@@ -576,8 +576,8 @@ export class DragonRig {
     scalesMat.vertexColors = false;
     scalesMat.map = null;
     scalesMat.emissiveMap = null;
-    scalesMat.color.setHex(0x4a0f0b);
-    scalesMat.emissive.setHex(0x3a0a02);
+    scalesMat.color.setHex(0xaeb8c8);
+    scalesMat.emissive.setHex(0x0c2a30);
     scalesMat.emissiveIntensity = 0.5;
     scalesMat.flatShading = true;
     this.disposables.push(scalesMat);
@@ -652,7 +652,7 @@ export class DragonRig {
         fins.push(aimed(spike(2.6 - k * 0.3, 0.42, 3), [s * 0.95, 0.35 + k * 0.08, -0.9], [s * Math.sin(ang) * 0.9, 0.25 - k * 0.1, -Math.cos(ang)], [1, 1, 0.22]));
       }
     }
-    const finMat = new THREE.MeshStandardMaterial({ color: 0x8a1c0e, emissive: 0xff3a08, emissiveIntensity: 0.35, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
+    const finMat = new THREE.MeshStandardMaterial({ color: 0x2a9a90, emissive: 0x30ffc8, emissiveIntensity: 0.3, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
     this.disposables.push(finMat);
     add(merge(fins), finMat);
     // 윗니 · 송곳니
@@ -1552,7 +1552,7 @@ export class DragonRig {
     const beat = 0.5 + 0.5 * Math.sin(t * (2.2 + rg * 1.4));
     const hurt = this.hurt;
     this.bodyMat.emissiveIntensity = 0.42 + 0.3 * rg * (0.7 + 0.5 * beat) + hurt * 0.9 + this.curFire * 0.35;
-    this.bodyMat.emissive.setRGB(1, 0.35 + 0.2 * hurt - 0.1 * rg, 0.08 + 0.2 * hurt);
+    this.bodyMat.emissive.setRGB(0.3 + 0.7 * hurt + 0.3 * rg, 1 - 0.25 * rg, 0.88 - 0.3 * rg + 0.12 * hurt);
     this.memMat.emissiveIntensity = 0.1 + 0.2 * rg * (0.7 + 0.5 * beat) + hurt * 0.5;
     this.eyeMat.color.setRGB(2.2, 1.7 - 0.62 * rg, 0.4 - 0.2 * rg).multiplyScalar(1 + this.curFire * 0.3);
     // 약점 보석은 숨 쉬듯 일렁인다 (맞으면 번쩍)
