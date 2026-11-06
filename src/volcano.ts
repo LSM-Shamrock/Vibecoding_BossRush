@@ -2,24 +2,24 @@ import * as THREE from 'three';
 import { CFG } from './config';
 
 /**
- * 3층 · 하늘 신전 — 구름 바다 위에 떠 있는 대리석 제단과 에워싼 열주, 멀리 보이는 거대한 신전. 머리 위는 맑은 낮 하늘.
+ * 3층 · 하늘 신전 — 구름 바다 위에 떠 있는 대리석 제단과 에워싼 열주, 멀리 보이는 거대한 신전. 머리 위는 불타는 노을 하늘.
  *
- *   · 색: 맑게 갠 파란 하늘과 환한 햇빛, 흰 대리석 바닥에 금빛 상감. 붉은 위험 표시가 밝은 바닥 위에서 또렷하다.
+ *   · 색: 자줏빛 붉은 하늘이 지평선으로 갈수록 주황 · 금빛으로 환해지고, 배경의 열주 · 신전은 노을빛을 받은 밝은 대리석. 제단 바닥은 어두운 대리석에 붉은 상감.
  *   · 지형: 둥근 대리석 제단(계단 3단) → 에워싼 열주와 들보 → 끝없는 구름 바다, 구름 속 부서진 기둥, 떠다니는 대리석 조각, 멀리 큰 신전.
- *   · 용이 하늘을 날아다니므로 하늘(돔)에 공을 들였다: 맑은 하늘과 뭉게구름, 해. 용이 포효하면 하늘이 번쩍 밝아진다.
+ *   · 용이 하늘을 날아다니므로 하늘(돔)에 공을 들였다: 불타는 노을과 빛을 받은 뭉게구름, 지는 해. 용이 포효하면 하늘이 번쩍 밝아진다.
  */
 const TAU = Math.PI * 2;
 const R = CFG.peak.radius;
 const LAVA_Y = -3.2; // 구름 바다의 높이
 
 export const VOLC = {
-  fog: 0x1a0b10,
-  fogDensity: 0.0052,
-  hemiSky: 0x40406a,
-  hemiGround: 0x5a1c14,
-  hemiIntensity: 0.8,
-  sun: 0xff7a4a,
-  sunIntensity: 1.25,
+  fog: 0x9a5a4a,
+  fogDensity: 0.0042,
+  hemiSky: 0xe0a890,
+  hemiGround: 0x6a2a1c,
+  hemiIntensity: 0.95,
+  sun: 0xffa064,
+  sunIntensity: 1.4,
   sunPos: [-34, 30, 26] as [number, number, number],
 };
 
@@ -47,19 +47,20 @@ function tex(cv: HTMLCanvasElement, srgb = true) {
   return t;
 }
 
-/** 하늘 돔 텍스처 (등장방형): 폭풍 전야 — 위는 거의 검은 남보라, 지평선 쪽은 핏빛으로 타오르고, 검은 먹구름이 붉은 테두리로 깔려 있다 */
+/** 하늘 돔 텍스처 (등장방형): 불타는 노을 — 위는 자줏빛 붉은 하늘, 지평선 쪽은 주황 · 금빛으로 환하게 타오르고, 아래에서 빛을 받은 뭉게구름이 떠 있다 */
 function makeSky(rand: () => number) {
   const W = 1024;
   const H = 512;
   const { cv, g } = canvas(W, H);
   const gr = g.createLinearGradient(0, 0, 0, H);
-  gr.addColorStop(0, '#04050c');
-  gr.addColorStop(0.22, '#0a0b1a');
-  gr.addColorStop(0.38, '#1c1224');
-  gr.addColorStop(0.46, '#4a1618');
-  gr.addColorStop(0.5, '#8a2a14');
-  gr.addColorStop(0.53, '#2a0e0e');
-  gr.addColorStop(1, '#120708');
+  gr.addColorStop(0, '#2a1430');
+  gr.addColorStop(0.18, '#55203a');
+  gr.addColorStop(0.32, '#9a3a3c');
+  gr.addColorStop(0.42, '#e0663e');
+  gr.addColorStop(0.48, '#ffa652');
+  gr.addColorStop(0.505, '#ffd88a');
+  gr.addColorStop(0.53, '#d0784e');
+  gr.addColorStop(1, '#9a5a4a');
   g.fillStyle = gr;
   g.fillRect(0, 0, W, H);
   const puff = (x: number, y: number, r: number, squash: number, rgb: string, a: number) => {
@@ -77,9 +78,9 @@ function makeSky(rand: () => number) {
       g.restore();
     }
   };
-  // 지평선의 붉은 불길 띠
-  for (let i = 0; i < 40; i++) puff(rand() * W, H * (0.47 + rand() * 0.05), 60 + rand() * 90, 0.18, '255,90,30', 0.22 + rand() * 0.2);
-  // 먹구름: 검은 덩어리 + 아래는 지평선의 붉은 빛을 받는다
+  // 지평선의 금빛 띠
+  for (let i = 0; i < 40; i++) puff(rand() * W, H * (0.47 + rand() * 0.05), 60 + rand() * 90, 0.18, '255,200,120', 0.18 + rand() * 0.18);
+  // 뭉게구름: 몸은 붉은 자줏빛, 아래와 가장자리는 지평선의 금빛을 받아 환하다
   for (let c = 0; c < 26; c++) {
     const cx = rand() * W;
     const cy = H * (0.14 + rand() * 0.34);
@@ -90,43 +91,44 @@ function makeSky(rand: () => number) {
       const k = (i / (n - 1)) * 2 - 1;
       pts.push([cx + k * 80 * size + (rand() - 0.5) * 28, cy + (rand() - 0.5) * 10 * size - (1 - Math.abs(k)) * 10 * size, (22 + rand() * 26) * size * (1 - Math.abs(k) * 0.35)]);
     }
-    const low = cy / H > 0.36 ? 1 : 0.4;
-    for (const [x, y, r] of pts) puff(x, y + r * 0.4, r * 1.05, 0.62, '170,52,24', 0.3 * low);
-    for (const [x, y, r] of pts) puff(x, y, r, 0.72, '14,12,22', 0.93);
-    for (const [x, y, r] of pts) puff(x - r * 0.1, y - r * 0.22, r * 0.5, 0.7, '44,40,64', 0.4);
+    const low = cy / H > 0.36 ? 1 : 0.55;
+    for (const [x, y, r] of pts) puff(x, y + r * 0.4, r * 1.08, 0.62, '255,170,90', 0.45 * low);
+    for (const [x, y, r] of pts) puff(x, y, r, 0.72, '150,62,74', 0.85);
+    for (const [x, y, r] of pts) puff(x, y + r * 0.3, r * 0.7, 0.6, '255,150,90', 0.4 * low);
+    for (const [x, y, r] of pts) puff(x - r * 0.1, y - r * 0.22, r * 0.5, 0.7, '255,196,160', 0.3);
   }
   // 높은 곳의 가는 구름결
-  for (let i = 0; i < 20; i++) puff(rand() * W, H * (0.05 + rand() * 0.15), 80 + rand() * 90, 0.09, '60,56,90', 0.2 + rand() * 0.15);
+  for (let i = 0; i < 20; i++) puff(rand() * W, H * (0.05 + rand() * 0.15), 80 + rand() * 90, 0.09, '230,130,130', 0.16 + rand() * 0.12);
   return tex(cv);
 }
 
-/** 하늘의 불길한 붉은 달(일식): 어두운 원반 둘레의 핏빛 후광 */
+/** 지는 해: 흰 금빛 원반과 넓게 번지는 주황 후광 */
 function makeSunTex(core: boolean) {
   const S = 256;
   const { cv, g } = canvas(S);
   const gg = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
   if (core) {
-    gg.addColorStop(0, 'rgba(255,120,60,0.0)');
-    gg.addColorStop(0.5, 'rgba(255,100,40,0.0)');
-    gg.addColorStop(0.58, 'rgba(255,110,50,0.95)');
-    gg.addColorStop(0.7, 'rgba(255,70,30,0.35)');
-    gg.addColorStop(1, 'rgba(255,60,20,0)');
+    gg.addColorStop(0, 'rgba(255,248,225,1)');
+    gg.addColorStop(0.42, 'rgba(255,224,160,1)');
+    gg.addColorStop(0.52, 'rgba(255,170,90,0.55)');
+    gg.addColorStop(0.7, 'rgba(255,140,70,0.12)');
+    gg.addColorStop(1, 'rgba(255,120,60,0)');
   } else {
-    gg.addColorStop(0, 'rgba(255,80,40,0.35)');
-    gg.addColorStop(0.3, 'rgba(255,60,30,0.2)');
-    gg.addColorStop(0.65, 'rgba(200,40,20,0.06)');
-    gg.addColorStop(1, 'rgba(160,30,10,0)');
+    gg.addColorStop(0, 'rgba(255,190,110,0.5)');
+    gg.addColorStop(0.3, 'rgba(255,150,80,0.25)');
+    gg.addColorStop(0.65, 'rgba(240,110,70,0.08)');
+    gg.addColorStop(1, 'rgba(220,90,60,0)');
   }
   g.fillStyle = gg;
   g.fillRect(0, 0, S, S);
   return tex(cv);
 }
 
-/** 구름 바다: 신전 아래로 깔린 시커먼 폭풍 구름, 군데군데 아래에서 붉게 번뜩인다 */
+/** 구름 바다: 신전 아래로 깔린 구름. 노을빛을 받은 주황 · 장밋빛 뭉게구름과 그 사이의 그늘 */
 function makeLava(rand: () => number) {
   const S = 512;
   const { cv, g } = canvas(S);
-  g.fillStyle = '#17090c';
+  g.fillStyle = '#7a4036';
   g.fillRect(0, 0, S, S);
   for (let i = 0; i < 380; i++) {
     const x = rand() * S;
@@ -134,8 +136,8 @@ function makeLava(rand: () => number) {
     const r = 14 + rand() * 46;
     const gg = g.createRadialGradient(x, y, 0, x, y, r);
     const b = rand();
-    gg.addColorStop(0, b < 0.62 ? 'rgba(48,36,46,0.8)' : b < 0.9 ? 'rgba(10,6,10,0.8)' : 'rgba(210,64,24,0.5)');
-    gg.addColorStop(1, 'rgba(23,9,12,0)');
+    gg.addColorStop(0, b < 0.55 ? 'rgba(210,120,90,0.75)' : b < 0.82 ? 'rgba(90,40,40,0.6)' : 'rgba(255,200,130,0.6)');
+    gg.addColorStop(1, 'rgba(122,64,54,0)');
     for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
       g.fillStyle = gg;
       g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
@@ -266,7 +268,7 @@ export class Volcano {
   private sky: THREE.Mesh;
   private sunDisc: THREE.Sprite;
   private sunGlow: THREE.Sprite;
-  private sunDir = new THREE.Vector3(...VOLC.sunPos).normalize();
+  private sunDir = new THREE.Vector3(VOLC.sunPos[0], 9, VOLC.sunPos[2]).normalize(); // 해: 지평선 가까이 낮게
   private embers: THREE.Points;
   private emberSpeed: Float32Array;
   private lights: { l: THREE.PointLight; base: number; ph: number }[] = [];
@@ -300,7 +302,7 @@ export class Volcano {
       return sp;
     };
     this.sunGlow = mkSun(false, 620);
-    this.sunDisc = mkSun(true, 150);
+    this.sunDisc = mkSun(true, 110);
 
     /* 구름 바다 */
     this.lavaTex = makeLava(rand);
@@ -312,6 +314,8 @@ export class Volcano {
 
     /* 제단: 계단 세 단 위의 대리석 바닥 */
     const marble = new THREE.MeshStandardMaterial({ color: 0x5a524c, roughness: 0.8, metalness: 0.02, flatShading: true });
+    // 배경(열주 · 기둥 · 떠다니는 조각)은 밝은 대리석: 노을빛을 받아 환하게, 그늘에서도 검게 죽지 않도록 살짝 스스로 빛난다
+    const bgMarble = new THREE.MeshStandardMaterial({ color: 0xf2e4d6, emissive: 0x6e3c2e, roughness: 0.75, metalness: 0.02, flatShading: true });
     const alt = makeAltar(rand);
     this.altarMat = new THREE.MeshStandardMaterial({ map: alt.map, emissiveMap: alt.glow, emissive: 0xff5a22, emissiveIntensity: 0.45, roughness: 0.6, metalness: 0.08 });
     const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 96).rotateX(-Math.PI / 2), this.altarMat);
@@ -338,8 +342,8 @@ export class Volcano {
     const capGeo = new THREE.BoxGeometry(1, 1, 1);
     const NC = 14;
     const RC = 118; // 용이 선회하는 범위(≈50) 밖 — 몸통이 기둥을 뚫지 않게 멀리 — 몸통이 기둥을 뚫지 않게 멀리
-    const cols = new THREE.InstancedMesh(colGeo, marble, NC * 3);
-    const caps = new THREE.InstancedMesh(capGeo, marble, NC * 3);
+    const cols = new THREE.InstancedMesh(colGeo, bgMarble, NC * 3);
+    const caps = new THREE.InstancedMesh(capGeo, bgMarble, NC * 3);
     const o = new THREE.Object3D();
     let ci = 0;
     const heights: number[] = [];
@@ -378,7 +382,7 @@ export class Volcano {
     root.add(cols, caps);
 
     /* 멀리 구름 속에서 솟은 부서진 기둥 · 첨탑 */
-    const stumps = new THREE.InstancedMesh(colGeo, marble, 60);
+    const stumps = new THREE.InstancedMesh(colGeo, bgMarble, 60);
     for (let i = 0; i < 60; i++) {
       const a = rand() * TAU;
       const d = 135 + Math.pow(rand(), 0.8) * 150;
@@ -394,7 +398,7 @@ export class Volcano {
     /* 둥둥 뜬 대리석 조각 */
     const rockGeo = new THREE.IcosahedronGeometry(1, 0);
     for (let i = 0; i < 16; i++) {
-      const m = new THREE.Mesh(rockGeo, marble);
+      const m = new THREE.Mesh(rockGeo, bgMarble);
       const a = rand() * TAU;
       const d = 85 + rand() * 90;
       const sc = 3 + rand() * 8;
@@ -406,7 +410,7 @@ export class Volcano {
 
     /* 먼 하늘의 큰 신전: 계단 · 열주 · 삼각 지붕 */
     const far = new THREE.Group();
-    const farMat = new THREE.MeshStandardMaterial({ color: 0x453d38, roughness: 0.9, flatShading: true });
+    const farMat = new THREE.MeshStandardMaterial({ color: 0xe8cfc0, emissive: 0x6a3022, roughness: 0.9, flatShading: true });
     const fb = new THREE.Mesh(new THREE.BoxGeometry(190, 12, 80), farMat);
     fb.position.y = 6;
     far.add(fb);
@@ -487,12 +491,12 @@ export class Volcano {
       this.boltQueue--;
       this.bolt = 0.8;
     }
-    const lk = 1 + this.bolt * 3.2 + this.flare * 0.5;
+    const lk = 1 + this.bolt * 0.5 + this.flare * 0.3;
     (this.sky.material as THREE.MeshBasicMaterial).color.setRGB(0.95 * lk, 0.92 * lk, 1.0 * lk);
     const pulse = 0.5 + 0.5 * Math.sin(t * 1.3);
     this.altarMat.emissiveIntensity = 0.4 + 0.15 * pulse + this.flare * 0.7;
     this.rimMat.color.setRGB(1, 0.32, 0.1).multiplyScalar(1.1 + 0.5 * pulse + this.flare * 0.6);
-    this.lavaMat.color.setRGB(1 + this.flare * 0.5 + this.bolt * 1.4, 1 + this.flare * 0.2 + this.bolt * 1.3, 1 + this.bolt * 1.5);
+    this.lavaMat.color.setRGB(1 + this.flare * 0.3 + this.bolt * 0.3, 1 + this.flare * 0.15 + this.bolt * 0.3, 1 + this.bolt * 0.4);
     for (const li of this.lights) {
       const f = 0.88 + 0.12 * Math.sin(t * 9 + li.ph) + 0.06 * Math.sin(t * 23 + li.ph * 2);
       li.l.intensity = li.base * f * (1 + this.flare * 0.5 + this.bolt * 1.5);
