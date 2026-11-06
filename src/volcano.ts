@@ -149,37 +149,62 @@ function makeLava(rand: () => number) {
 }
 
 /**
- * 제단 바닥: 식어서 굳은 용암 껍질. 크고 작은 판(보로노이 조각)으로 갈라져 있고, 판 사이 틈으로 아래의 용암빛이 새어 나온다(발광 층).
- * 판 모양은 낮은 해상도에서 계산해 키워 그리고(틈이 부드럽게 번진다), 기공 · 잔금은 원래 해상도로 덧그린다.
+ * 제단 바닥: 식어서 굳은 용암 껍질. 크고 작은 판(보로노이 조각)으로 갈라져 있고, 판 사이 틈으로 아래의 용암빛이 새어 나온다.
+ *  · 색(map) · 발광(glow) · 요철(normal) 세 장을 만든다. 판 모양과 높이는 1024 해상도에서 계산한다.
+ *  · 높이: 판마다 살짝 기울어 있고, 가장자리는 둥글게 깎여 틈으로 꺼지며, 겉면은 거친 노이즈. → 노멀맵으로 빛을 받아 입체적으로 보인다.
  */
 function makeAltar(rand: () => number) {
   const S = 2048;
   const c = S / 2;
   const px = S / (R * 2);
-  const base = canvas(S);
-  const glow = canvas(S);
-  const g = base.g;
-  const e = glow.g;
 
-  // 1) 굳은 용암 판: 흩어진 격자점을 씨앗으로 한 보로노이 (격자라서 이웃 9칸만 보면 된다)
-  const L = 512;
-  const GN = 16;
+  // 값 노이즈 (격자 난수를 부드럽게 보간)
+  const PN = 256;
+  const perm = new Float32Array(PN * PN);
+  for (let i = 0; i < perm.length; i++) perm[i] = rand();
+  const vnoise = (x: number, y: number) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const fx = x - xi;
+    const fy = y - yi;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const at = (a: number, b: number) => perm[(((b % PN) + PN) % PN) * PN + (((a % PN) + PN) % PN)];
+    const a = at(xi, yi) + (at(xi + 1, yi) - at(xi, yi)) * ux;
+    const b = at(xi, yi + 1) + (at(xi + 1, yi + 1) - at(xi, yi + 1)) * ux;
+    return a + (b - a) * uy;
+  };
+
+  // 1) 판(보로노이): 흩어진 격자점이 씨앗. 이웃 9칸만 본다
+  const L = 1024;
+  const GN = 20;
   const cell = L / GN;
-  const seeds: { x: number; y: number; s: number; hot: number }[] = [];
+  const lp = L / (R * 2); // 1 단위 = lp 픽셀
+  const seeds: { x: number; y: number; s: number; hot: number; tx: number; ty: number }[] = [];
   for (let gy = 0; gy < GN; gy++) {
     for (let gx = 0; gx < GN; gx++) {
-      seeds.push({ x: (gx + 0.12 + rand() * 0.76) * cell, y: (gy + 0.12 + rand() * 0.76) * cell, s: rand(), hot: rand() < 0.8 ? 1 : 0.35 });
+      seeds.push({
+        x: (gx + rand()) * cell,
+        y: (gy + rand()) * cell,
+        s: rand(),
+        hot: rand() < 0.78 ? 1 : 0.3,
+        tx: (rand() - 0.5) * 0.012,
+        ty: (rand() - 0.5) * 0.012,
+      });
     }
   }
-  const small = canvas(L);
-  const smallGlow = canvas(L);
-  const bi = small.g.createImageData(L, L);
-  const gi = smallGlow.g.createImageData(L, L);
-  const lp = L / (R * 2);
+  const H = new Float32Array(L * L);
+  const col = new ImageData(L, L);
+  const glw = new ImageData(L, L);
+  const bevel = 0.45 * lp; // 판 가장자리가 둥글게 깎이는 폭
+  const seamW = 0.13 * lp; // 틈(용암빛) 폭
   for (let y = 0; y < L; y++) {
     for (let x = 0; x < L; x++) {
-      const gx = Math.floor(x / cell);
-      const gy = Math.floor(y / cell);
+      // 좌표를 노이즈로 비틀어 판 경계가 곧은 선이 아니라 구불구불하게
+      const wx = Math.min(L - 1, Math.max(0, x + (vnoise(x / 40 + 7, y / 40) - 0.5) * 26 + (vnoise(x / 12, y / 12 + 3) - 0.5) * 6));
+      const wy = Math.min(L - 1, Math.max(0, y + (vnoise(x / 40, y / 40 + 11) - 0.5) * 26 + (vnoise(x / 12 + 5, y / 12) - 0.5) * 6));
+      const gx = Math.floor(wx / cell);
+      const gy = Math.floor(wy / cell);
       let d1 = 1e9;
       let d2 = 1e9;
       let i1 = 0;
@@ -191,7 +216,7 @@ function makeAltar(rand: () => number) {
           if (xx < 0 || xx >= GN) continue;
           const i = yy * GN + xx;
           const s = seeds[i];
-          const d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+          const d = (s.x - wx) * (s.x - wx) + (s.y - wy) * (s.y - wy);
           if (d < d1) {
             d2 = d1;
             d1 = d;
@@ -199,52 +224,104 @@ function makeAltar(rand: () => number) {
           } else if (d < d2) d2 = d;
         }
       }
-      const edge = Math.sqrt(d2) - Math.sqrt(d1); // 판 경계까지의 거리(의 두 배 정도)
+      const edge = (Math.sqrt(d2) - Math.sqrt(d1)) * 0.5; // 판 경계까지의 거리(픽셀)
       const sd = seeds[i1];
-      // 판: 가운데는 조금 밝고(굳은 겉면), 가장자리로 갈수록 어둡게 말려 들어간다
-      const k = Math.min(1, edge / (0.9 * lp));
-      const sh = (30 + sd.s * 24) * (0.55 + 0.45 * k);
-      const o = (y * L + x) * 4;
-      bi.data[o] = sh;
-      bi.data[o + 1] = sh * 0.82;
-      bi.data[o + 2] = sh * 0.74;
-      bi.data[o + 3] = 255;
-      // 틈의 용암빛
-      const t = Math.max(0, 1 - edge / (2.2 * (lp / 8.5)));
-      const seam = t * t * sd.hot;
-      gi.data[o] = 255 * seam;
-      gi.data[o + 1] = (80 + 110 * t) * seam;
-      gi.data[o + 2] = 30 * seam;
-      gi.data[o + 3] = 255;
+      const n = vnoise(x / 9, y / 9) * 0.5 + vnoise(x / 3.5 + 50, y / 3.5) * 0.3 + vnoise(x / 26 + 90, y / 26) * 0.2;
+      // 높이: 둥근 모서리 + 판 기울기 + 거친 겉면
+      const k = Math.min(1, edge / bevel);
+      const round = Math.sqrt(1 - (1 - k) * (1 - k));
+      const h = round * 0.85 + ((x - sd.x) * sd.tx + (y - sd.y) * sd.ty) + (n - 0.5) * 0.22 * round;
+      const o = y * L + x;
+      H[o] = h;
+      // 색: 판마다 밝기가 다르고, 높은 곳은 재가 앉아 살짝 밝으며, 틈 쪽은 그을려 어둡다
+      const sh = (26 + sd.s * 20 + n * 18) * (0.45 + 0.55 * round);
+      const warm = Math.max(0, 1 - edge / (seamW * 4)) * sd.hot; // 틈 가까이는 열기에 붉게 달아 있다
+      col.data[o * 4] = sh + 46 * warm;
+      col.data[o * 4 + 1] = sh * 0.8 + 8 * warm;
+      col.data[o * 4 + 2] = sh * 0.72;
+      col.data[o * 4 + 3] = 255;
+      // 발광: 틈의 용암 + 틈 가장자리의 은은한 열기
+      const t = Math.max(0, 1 - edge / seamW);
+      const seam = t * t * (0.55 + 0.25 * n) * sd.hot;
+      const heat = warm * warm * 0.08;
+      const gl = Math.min(1, seam + heat);
+      glw.data[o * 4] = 255 * gl;
+      glw.data[o * 4 + 1] = 95 * gl + 130 * seam * t;
+      glw.data[o * 4 + 2] = 40 * seam * t;
+      glw.data[o * 4 + 3] = 255;
     }
   }
-  small.g.putImageData(bi, 0, 0);
-  smallGlow.g.putImageData(gi, 0, 0);
-  g.imageSmoothingEnabled = true;
-  e.imageSmoothingEnabled = true;
-  g.drawImage(small.cv, 0, 0, S, S);
-  e.drawImage(smallGlow.cv, 0, 0, S, S);
 
-  // 2) 현무암 기공 · 거친 알갱이
-  for (let i = 0; i < 26000; i++) {
+  // 2) 요철 → 노멀맵
+  const nrm = canvas(L);
+  const ni = nrm.g.createImageData(L, L);
+  const STR = 7;
+  for (let y = 0; y < L; y++) {
+    const ym = Math.max(0, y - 1);
+    const yp = Math.min(L - 1, y + 1);
+    for (let x = 0; x < L; x++) {
+      const xm = Math.max(0, x - 1);
+      const xp = Math.min(L - 1, x + 1);
+      let nx = (H[y * L + xm] - H[y * L + xp]) * STR;
+      let ny = (H[yp * L + x] - H[ym * L + x]) * STR;
+      let nz = 1;
+      const l = Math.hypot(nx, ny, nz);
+      nx /= l;
+      ny /= l;
+      nz /= l;
+      const o = (y * L + x) * 4;
+      ni.data[o] = (nx * 0.5 + 0.5) * 255;
+      ni.data[o + 1] = (ny * 0.5 + 0.5) * 255;
+      ni.data[o + 2] = (nz * 0.5 + 0.5) * 255;
+      ni.data[o + 3] = 255;
+    }
+  }
+  nrm.g.putImageData(ni, 0, 0);
+
+  // 3) 색 · 발광: 1024 결과를 2048 에 그리고, 원래 해상도로 세부를 덧그린다
+  const base = canvas(S);
+  const glow = canvas(S);
+  const g = base.g;
+  const e = glow.g;
+  const tmp = canvas(L);
+  tmp.g.putImageData(col, 0, 0);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(tmp.cv, 0, 0, S, S);
+  tmp.g.putImageData(glw, 0, 0);
+  e.imageSmoothingQuality = 'high';
+  e.drawImage(tmp.cv, 0, 0, S, S);
+  // 기공 (작은 구멍: 어두운 속 + 아래쪽 가장자리의 밝은 테)
+  for (let i = 0; i < 30000; i++) {
     const x = rand() * S;
     const y = rand() * S;
-    g.fillStyle = rand() < 0.65 ? 'rgba(6,4,4,0.5)' : 'rgba(130,108,96,0.16)';
+    const r = 0.8 + rand() * rand() * 3.2;
+    g.fillStyle = 'rgba(4,2,2,0.55)';
     g.beginPath();
-    g.arc(x, y, 1 + rand() * 2.4, 0, TAU);
+    g.arc(x, y, r, 0, TAU);
     g.fill();
+    if (r > 1.6) {
+      g.fillStyle = 'rgba(150,126,112,0.18)';
+      g.beginPath();
+      g.arc(x + r * 0.35, y + r * 0.35, r * 0.6, 0, TAU);
+      g.fill();
+    }
   }
-  // 3) 판을 가로지르는 가는 잔금 (틈으로 용암이 비친다)
-  for (let i = 0; i < 18; i++) {
-    let x = c + (rand() - 0.5) * S * 0.9;
-    let y = c + (rand() - 0.5) * S * 0.9;
+  // 재 · 광물 반점
+  for (let i = 0; i < 9000; i++) {
+    g.fillStyle = rand() < 0.7 ? 'rgba(160,140,128,0.12)' : 'rgba(200,90,40,0.1)';
+    g.fillRect(rand() * S, rand() * S, 1 + rand() * 2, 1 + rand() * 2);
+  }
+  // 판을 가로지르는 가는 잔금 (틈으로 용암이 비친다)
+  for (let i = 0; i < 26; i++) {
+    let x = c + (rand() - 0.5) * S * 0.92;
+    let y = c + (rand() - 0.5) * S * 0.92;
     if (Math.hypot(x - c, y - c) > R * px - 20) continue;
     let a = rand() * TAU;
     const pts: [number, number][] = [[x, y]];
-    for (let k = 0; k < 10; k++) {
-      a += (rand() - 0.5) * 1.0;
-      x += Math.cos(a) * 18;
-      y += Math.sin(a) * 18;
+    for (let k = 0; k < 8; k++) {
+      a += (rand() - 0.5) * 1.1;
+      x += Math.cos(a) * 14;
+      y += Math.sin(a) * 14;
       pts.push([x, y]);
     }
     const path = (ctx: CanvasRenderingContext2D) => {
@@ -254,13 +331,120 @@ function makeAltar(rand: () => number) {
       ctx.stroke();
     };
     g.strokeStyle = 'rgba(4,2,2,0.85)';
-    g.lineWidth = 4;
+    g.lineWidth = 3;
     path(g);
-    e.strokeStyle = 'rgba(255,150,50,0.7)';
-    e.lineWidth = 2;
+    e.strokeStyle = 'rgba(255,140,50,0.6)';
+    e.lineWidth = 1.4;
     path(e);
   }
-  return { map: tex(base.cv), glow: tex(glow.cv) };
+  const map = tex(base.cv);
+  const gl = tex(glow.cv);
+  const normal = tex(nrm.cv, false);
+  for (const t of [map, gl, normal]) t.anisotropy = 8;
+  return { map, glow: gl, normal };
+}
+
+/**
+ * 바닥 세부 텍스처(반복 타일): 가까이서 보아도 뭉개지지 않도록 큰 바닥 텍스처 위에 촘촘히 겹쳐 입히는 현무암 결.
+ * color: 평균 회색(0.5) 둘레의 밝기 얼룩 · 기공(곱해서 쓴다), normal: 거친 알갱이와 기공의 요철. 둘 다 이음매 없이 반복된다.
+ */
+function makeDetail(rand: () => number) {
+  const S = 512;
+  const P = 64; // 노이즈 격자 주기 (S 를 나누어 떨어지게 해서 이음매가 없다)
+  const grid = new Float32Array(P * P * 3);
+  for (let i = 0; i < grid.length; i++) grid[i] = rand();
+  const tnoise = (x: number, y: number, per: number, layer: number) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const fx = x - xi;
+    const fy = y - yi;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const at = (a: number, b: number) => grid[layer * P * P + (((b % per) + per) % per) * P + (((a % per) + per) % per)];
+    const a = at(xi, yi) + (at(xi + 1, yi) - at(xi, yi)) * ux;
+    const b = at(xi, yi + 1) + (at(xi + 1, yi + 1) - at(xi, yi + 1)) * ux;
+    return a + (b - a) * uy;
+  };
+  const h = new Float32Array(S * S);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      h[y * S + x] =
+        tnoise(x / 32, y / 32, 16, 0) * 0.45 + tnoise(x / 8, y / 8, 64, 1) * 0.35 + tnoise(x / 4, y / 4, 64, 2) * 0.2;
+    }
+  }
+  // 기공: 작은 구덩이 (가장자리를 넘으면 반대편에 이어 그린다)
+  for (let i = 0; i < 520; i++) {
+    const cx = rand() * S;
+    const cy = rand() * S;
+    const r = 1.5 + rand() * rand() * 7;
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
+      for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+        const d = Math.hypot(dx, dy) / r;
+        if (d >= 1) continue;
+        const x = (((Math.round(cx) + dx) % S) + S) % S;
+        const y = (((Math.round(cy) + dy) % S) + S) % S;
+        h[y * S + x] -= (1 - d * d) * 0.7;
+      }
+    }
+  }
+  const cc = canvas(S);
+  const nc = canvas(S);
+  const ci = cc.g.createImageData(S, S);
+  const ni = nc.g.createImageData(S, S);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const o = y * S + x;
+      const v = h[o];
+      // 색: 0.5(=128) 둘레. 구덩이는 어둡게
+      const c = Math.max(0, Math.min(255, 128 + (v - 0.5) * 120));
+      ci.data[o * 4] = c;
+      ci.data[o * 4 + 1] = c;
+      ci.data[o * 4 + 2] = c;
+      ci.data[o * 4 + 3] = 255;
+      const xl = h[y * S + ((x + S - 1) % S)];
+      const xr = h[y * S + ((x + 1) % S)];
+      const yu = h[((y + S - 1) % S) * S + x];
+      const yd = h[((y + 1) % S) * S + x];
+      let nx = (xl - xr) * 3;
+      let ny = (yd - yu) * 3;
+      const l = Math.hypot(nx, ny, 1);
+      nx /= l;
+      ny /= l;
+      ni.data[o * 4] = (nx * 0.5 + 0.5) * 255;
+      ni.data[o * 4 + 1] = (ny * 0.5 + 0.5) * 255;
+      ni.data[o * 4 + 2] = (0.5 / l + 0.5) * 255;
+      ni.data[o * 4 + 3] = 255;
+    }
+  }
+  cc.g.putImageData(ci, 0, 0);
+  nc.g.putImageData(ni, 0, 0);
+  const color = tex(cc.cv, false);
+  const normal = tex(nc.cv, false);
+  for (const t of [color, normal]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 8;
+  }
+  return { color, normal };
+}
+
+/** 바닥 재질에 세부 텍스처를 겹친다: 색은 곱하고, 요철은 큰 노멀맵에 더한다 */
+function addFloorDetail(mat: THREE.MeshStandardMaterial, det: { color: THREE.Texture; normal: THREE.Texture }, rep: number) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uDetailC = { value: det.color };
+    sh.uniforms.uDetailN = { value: det.normal };
+    sh.uniforms.uDetailRep = { value: rep };
+    sh.fragmentShader =
+      'uniform sampler2D uDetailC;\nuniform sampler2D uDetailN;\nuniform float uDetailRep;\n' +
+      sh.fragmentShader
+        .replace('#include <map_fragment>', '#include <map_fragment>\n  diffuseColor.rgb *= texture2D( uDetailC, vMapUv * uDetailRep ).rgb * 2.0;')
+        .replace(
+          '#include <normal_fragment_maps>',
+          THREE.ShaderChunk.normal_fragment_maps.replace(
+            'mapN.xy *= normalScale;',
+            'mapN.xy *= normalScale;\n  mapN.xy += ( texture2D( uDetailN, vNormalMapUv * uDetailRep ).xy * 2.0 - 1.0 ) * 0.9;',
+          ),
+        );
+  };
 }
 
 /**
@@ -572,7 +756,8 @@ export class Volcano {
     /* 제단: 굳은 용암 껍질 바닥 + 들쭉날쭉한 현무암 턱 세 단 */
     const rock = new THREE.MeshStandardMaterial({ color: 0x3a2e2a, emissive: 0x1a0804, roughness: 0.95, metalness: 0.02, flatShading: true });
     const alt = makeAltar(rand);
-    this.altarMat = new THREE.MeshStandardMaterial({ map: alt.map, emissiveMap: alt.glow, emissive: 0xff5a22, emissiveIntensity: 0.45, roughness: 0.85, metalness: 0 });
+    this.altarMat = new THREE.MeshStandardMaterial({ map: alt.map, emissiveMap: alt.glow, emissive: 0xff5a22, emissiveIntensity: 0.45, normalMap: alt.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.82, metalness: 0 });
+    addFloorDetail(this.altarMat, makeDetail(rand), 24); // 바닥 세부: 2.5칸마다 반복되는 현무암 결
     const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 96).rotateX(-Math.PI / 2), this.altarMat);
     floor.receiveShadow = true;
     root.add(floor);
