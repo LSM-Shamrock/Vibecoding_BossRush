@@ -296,7 +296,7 @@ export class Dragon implements Boss, BabyOwner {
       if (this.enterDrop) host.sfx.bossIntro();
       host.sfx.roar();
       host.shake(1.6, 0.4);
-      host.flash('#ff7a2a', 0.4, 0.9);
+      host.flash('#ffd9a0', 0.4, 0.9);
       host.skyPulse?.(1);
       const q = this.player.pos;
       host.fx.ring(q.x, q.z, 22, 1.0, 0xffb060);
