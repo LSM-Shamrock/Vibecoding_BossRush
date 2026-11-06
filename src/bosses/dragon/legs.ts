@@ -108,7 +108,7 @@ export class DragonLegs {
     const kneeGeo = new THREE.SphereGeometry(0.4, 9, 7);
     this.geos = [upperGeo, lowerGeo, kneeGeo];
     // 색만 용에 맞춰 바꿨다 (거미: 0x35160e / 무릎 0xc08a34)
-    this.legMat = new THREE.MeshStandardMaterial({ color: 0x1e2a66, emissive: 0x0c1230, roughness: 0.74, metalness: 0.08, flatShading: true, side: THREE.DoubleSide });
+    this.legMat = new THREE.MeshStandardMaterial({ color: 0x6a1a12, emissive: 0x3a0c06, roughness: 0.74, metalness: 0.08, flatShading: true, side: THREE.DoubleSide });
     this.kneeMat = new THREE.MeshStandardMaterial({ color: 0xd9a441, emissive: 0x4a2806, roughness: 0.74, metalness: 0.08, flatShading: true, side: THREE.DoubleSide });
     this.clawMat = new THREE.MeshStandardMaterial({ color: 0xe6dcc2, emissive: 0x1a1608, roughness: 0.6, metalness: 0.1, flatShading: true, side: THREE.DoubleSide });
     const toeGeo = halfCone(0.8, 0.55);
