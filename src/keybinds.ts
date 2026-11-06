@@ -8,19 +8,26 @@ export interface ActionInfo {
   id: ActionId;
   label: string;
   hint: string;
-  group: 'move' | 'combat' | 'system';
+  group: ActionGroup;
   defaults: readonly [string, string | null];
 }
+
+export type ActionGroup = 'move' | 'combat' | 'system';
+/** 조작 키 패널의 소제목 */
+export const GROUP_LABEL: Record<ActionGroup, string> = { move: '이동', combat: '공격', system: '기타' };
+
+/** 마우스 버튼도 키처럼 지정할 수 있다 (좌클릭은 불꽃 쏘기 전용이라 제외) */
+export const MOUSE_CODES: Record<number, string> = { 1: 'MouseMiddle', 2: 'MouseRight' };
 
 export const ACTIONS: readonly ActionInfo[] = [
   { id: 'up', label: '위로 이동', hint: '', group: 'move', defaults: ['KeyW', 'ArrowUp'] },
   { id: 'down', label: '아래로 이동', hint: '', group: 'move', defaults: ['KeyS', 'ArrowDown'] },
   { id: 'left', label: '왼쪽으로 이동', hint: '', group: 'move', defaults: ['KeyA', 'ArrowLeft'] },
   { id: 'right', label: '오른쪽으로 이동', hint: '', group: 'move', defaults: ['KeyD', 'ArrowRight'] },
-  { id: 'dash', label: '대시', hint: '', group: 'combat', defaults: ['Space', null] },
-  { id: 'jump', label: '점프', hint: '', group: 'combat', defaults: ['ShiftLeft', 'ShiftRight'] },
-  { id: 'special', label: '특수기', hint: '', group: 'combat', defaults: ['KeyQ', null] },
-  { id: 'lockon', label: '락온 (보스 주시)', hint: '', group: 'combat', defaults: ['KeyE', null] },
+  { id: 'dash', label: '대시', hint: '', group: 'move', defaults: ['Space', null] },
+  { id: 'jump', label: '점프', hint: '', group: 'move', defaults: ['ShiftLeft', 'ShiftRight'] },
+  { id: 'special', label: '특수기', hint: '', group: 'combat', defaults: ['MouseRight', null] },
+  { id: 'lockon', label: '락온 (보스 주시)', hint: '', group: 'combat', defaults: ['MouseMiddle', null] },
   { id: 'mute', label: '소리 켜기/끄기', hint: '', group: 'system', defaults: ['KeyM', null] },
   { id: 'retry', label: '재도전', hint: '', group: 'system', defaults: ['KeyR', null] },
 ];
@@ -30,14 +37,15 @@ export const actionLabel = (id: ActionId) => INFO.get(id)!.label;
 
 type Pair = [string | null, string | null];
 
-const STORE_KEY = 'deepnest.keys.v3';
+const STORE_KEY = 'deepnest.keys.v5';
+/** 예전 저장값. 읽어서 v5 로 옮긴다 (v3: 마우스 버튼 지정 이전, v4: 특수기 · 락온에 보조 키 기본값이 있던 때) */
+const OLD_STORE_KEYS = ['deepnest.keys.v4', 'deepnest.keys.v3'] as const;
 
 /* ───────────── 지정할 수 없는 키 ───────────── */
 const FIXED_REASON: Record<string, string> = {
   Escape: 'Esc는 일시정지 전용 키라 바꿀 수 없습니다',
   Enter: 'Enter는 확인/계속 전용 키라 지정할 수 없습니다',
   NumpadEnter: 'Enter는 확인/계속 전용 키라 지정할 수 없습니다',
-  Backquote: '` 키는 개발용 디버그 키라 지정할 수 없습니다',
 };
 const DENY = new Set([
   'Tab', 'CapsLock', 'NumLock', 'ScrollLock', 'Pause', 'PrintScreen', 'ContextMenu',
@@ -49,7 +57,6 @@ const DENY = new Set([
 export function denyReason(code: string): string | null {
   if (!code) return '인식할 수 없는 키입니다';
   if (FIXED_REASON[code]) return FIXED_REASON[code];
-  if (/^Digit[0-9]$/.test(code)) return '숫자 0~9 키는 개발용 디버그 키라 지정할 수 없습니다';
   if (/^F\d{1,2}$/.test(code)) return '기능 키(F1~F12)는 브라우저가 쓰므로 지정할 수 없습니다';
   if (code === 'Backspace' || code === 'Delete') return '이 키는 칸을 비우는 데 쓰입니다';
   if (DENY.has(code)) return '지정할 수 없는 키입니다';
@@ -59,6 +66,8 @@ export function denyReason(code: string): string | null {
 /* ───────────── 표시용 이름 ───────────── */
 const NAMES: Record<string, string> = {
   Space: 'Space',
+  MouseRight: '우클릭',
+  MouseMiddle: '휠 클릭',
   ArrowUp: '↑',
   ArrowDown: '↓',
   ArrowLeft: '←',
@@ -229,8 +238,14 @@ export class Keybinds {
 
   private load() {
     let raw: string | null = null;
+    let old: (typeof OLD_STORE_KEYS)[number] | null = null;
     try {
       raw = localStorage.getItem(STORE_KEY);
+      for (const k of OLD_STORE_KEYS) {
+        if (raw) break;
+        raw = localStorage.getItem(k);
+        if (raw) old = k;
+      }
     } catch {
       return;
     }
@@ -255,6 +270,20 @@ export class Keybinds {
       }
       this.map = next;
       this.normalize();
+      if (old === 'deepnest.keys.v3') {
+        // 마우스 버튼 지정 이전: 특수기 = 우클릭, 락온 = 휠 클릭을 빈 자리에 끼워 넣는다
+        const sp = next.get('special')!;
+        if (!used.has('MouseRight') && !sp[1]) next.set('special', ['MouseRight', sp[0]]);
+        const lk = next.get('lockon')!;
+        if (!used.has('MouseMiddle') && !lk[1]) next.set('lockon', ['MouseMiddle', lk[0]]);
+      } else if (old === 'deepnest.keys.v4') {
+        // 예전 기본값 그대로면 보조 키를 비운다
+        const sp = next.get('special')!;
+        if (sp[0] === 'MouseRight' && sp[1] === 'KeyQ') next.set('special', ['MouseRight', null]);
+        const lk = next.get('lockon')!;
+        if (lk[0] === 'KeyE' && lk[1] === 'MouseMiddle') next.set('lockon', ['MouseMiddle', null]);
+      }
+      if (old) this.commit();
     } catch {
       // 손상되었거나 규칙에 안 맞는 저장값은 버리고 기본값 사용
       this.setDefaults();

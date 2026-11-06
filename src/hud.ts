@@ -12,12 +12,11 @@ export interface HudState {
   boss: BossInfo | null;
   /** 등장 연출 중 체력바가 차오르는 비율(0~1). 전투 중에는 1 */
   bossReveal: number;
-  god: boolean;
-  muted: boolean;
-  bossAttacks: boolean;
   fps: number;
-  debug: string;
 }
+
+/** 이 프레임률 아래면 FPS 표시가 붉어진다 */
+const LOW_FPS = 45;
 
 export class Hud {
   private lamps: HTMLElement[] = [];
@@ -39,7 +38,6 @@ export class Hud {
   private barShown = 1;
   private barT = 0;
   private barBoss: BossInfo | null = null;
-  private status = $('status');
   private fpsEl = $('fps');
   private dmgLayer = $('dmglayer');
   private overlay = $('overlay');
@@ -56,7 +54,6 @@ export class Hud {
   private toastTimer = 0;
   private bannerTimer = 0;
   private v = new THREE.Vector3();
-  private lastStatus = '';
   private marksKey = '';
 
   constructor(private camera: THREE.Camera) {
@@ -151,15 +148,21 @@ export class Hud {
       }
     }
 
-    const st =
-      `소리 ${s.muted ? 'OFF' : 'ON'} · 보스 공격 ${s.bossAttacks ? 'ON' : 'OFF'}` +
-      (s.god ? ' · <b>무적</b>' : '') +
-      (s.debug ? ` · <span class="dbg">${s.debug}</span>` : '');
-    if (st !== this.lastStatus) {
-      this.status.innerHTML = st;
-      this.lastStatus = st;
+    if (this.fpsOn) {
+      const f = `${Math.round(s.fps)} FPS`;
+      if (f !== this.lastFps) {
+        this.fpsEl.textContent = this.lastFps = f;
+        this.fpsEl.classList.toggle('low', s.fps < LOW_FPS);
+      }
     }
-    this.fpsEl.textContent = `${Math.round(s.fps)} fps`;
+  }
+
+  private fpsOn = true;
+  private lastFps = '';
+  /** 그래픽 설정: FPS 표시 켜기/끄기 */
+  showFps(on: boolean) {
+    this.fpsOn = on;
+    this.fpsEl.style.display = on ? '' : 'none';
   }
 
   /** 몸통 접촉 등으로 화면이 물드는 정도 (0 = 없음) */

@@ -82,9 +82,9 @@ export interface Boss extends Target, BossInfo {
   readonly phaseIndex: number;
   /** 보스가 화면에 입히는 색 효과 강도 0~1 (이무기 몸통 접촉 = 보라색) */
   readonly screenTint?: number;
-  /** 디버그 표시용 현재 상태 */
+  /** 현재 상태 (자동화 테스트용, 화면에는 안 보인다) */
   readonly status: string;
-  /** 디버그 키(9)로 순서대로 불러낼 수 있는 공격 이름들 */
+  /** forceAttack 으로 불러낼 수 있는 공격 이름들 (자동화 테스트용) */
   readonly attackNames: readonly string[];
   onDeath: () => void;
   update(dt: number): void;

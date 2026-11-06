@@ -3,6 +3,7 @@ import { CFG } from './config';
 import type { Host } from './types';
 import type { Player } from './player';
 import { WORLD } from './world';
+import { animateVenomDeco, makeVenomDeco, tickVenomCore, venomCoreMaterial } from './bosses/serpent/venomorb';
 
 const V3 = THREE.Vector3;
 
@@ -34,6 +35,8 @@ interface Proj {
   /** 바닥 위치 표시 (필요할 때 처음 한 번만 만든다) */
   mark?: THREE.Group;
   markK: number;
+  /** 독 구슬 장식 (venom 탄일 때만, 처음 한 번 만든다) */
+  deco?: THREE.Group;
 }
 
 /** 보스 탄(구체). 모든 보스가 공용으로 쓰는 AimedShot / FanShot / RingBurst의 재료. */
@@ -73,7 +76,13 @@ export class Projectiles {
     p.r = radius;
     p.kind = opts.kind ?? 'orange';
     p.onHit = opts.onHit;
-    p.mesh.material = this.mats[p.kind];
+    const venom = p.kind === 'venom';
+    p.mesh.material = venom ? venomCoreMaterial() : this.mats[p.kind];
+    if (venom && !p.deco) {
+      p.deco = makeVenomDeco();
+      p.mesh.add(p.deco);
+    }
+    if (p.deco) p.deco.visible = venom;
     p.mesh.visible = true;
     p.mesh.position.set(x, y, z);
     p.mesh.scale.setScalar(radius);
@@ -134,9 +143,14 @@ export class Projectiles {
   update(dt: number) {
     const lim = WORLD.radius + 2;
     const pl = this.player;
+    tickVenomCore(performance.now() / 1000);
     for (const p of this.pool) {
       if (!p.active) continue;
       p.life -= dt;
+      if (p.kind === 'venom' && p.deco) {
+        animateVenomDeco(p.deco, dt);
+        if (Math.random() < 0.3) this.host.fx.particles.burst(p.mesh.position, 0x5a24c8, 1, 0.8, 0.35, 0.07, 0.2, 0, 2);
+      }
       p.mesh.position.addScaledVector(p.vel, dt);
       const pos = p.mesh.position;
       if (p.mark) p.mark.position.set(pos.x, 0, pos.z);

@@ -22,6 +22,7 @@ import { PAL } from './palette';
 import { WORLD } from './world';
 import { DIFF, DIFFS, setDifficulty, type DiffKey } from './difficulty';
 import { ExitDoor } from './exitdoor';
+import { FX_LIGHTS, Graphics, type GfxSettings } from './graphics';
 
 /** 락온 중 시선이 몸통 방향보다 이만큼(rad) 더 아래를 보면 자유 조준으로 전환 */
 const LOCK_FREE_AIM = 0.17;
@@ -68,6 +69,7 @@ class Game implements Host {
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private binds = new Keybinds();
+  private gfx = new Graphics();
   private keyPanel: KeyPanel;
   private settings: SettingsPanel;
   private input: Input;
@@ -107,7 +109,6 @@ class Game implements Host {
   private lockEl = document.getElementById('lockon') as HTMLElement;
   private hadLock = false;
   private lockLostAt = -1e9;
-  private debugOn = false;
 
   // 전투 흐름
   private fightTime = 0;
@@ -116,12 +117,11 @@ class Game implements Host {
   private bannerShown = false;
   private waitT = 0;
   private overShown = false;
-  private debugAtk = 0;
 
   constructor() {
     const canvas = document.getElementById('c') as HTMLCanvasElement;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    const pr = Math.min(window.devicePixelRatio, 1.5);
+    const pr = this.pixelRatio();
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
@@ -132,12 +132,18 @@ class Game implements Host {
     this.camera = new THREE.PerspectiveCamera(CFG.camera.fov, window.innerWidth / window.innerHeight, 0.15, 1500);
 
     // 후처리: MSAA 렌더타깃 + Bloom(발광 부위만 번짐) + 톤매핑 출력
-    const rt = new THREE.WebGLRenderTarget(window.innerWidth * pr, window.innerHeight * pr, { type: THREE.HalfFloatType, samples: 4 });
+    const rt = new THREE.WebGLRenderTarget(window.innerWidth * pr, window.innerHeight * pr, { type: THREE.HalfFloatType, samples: this.gfx.v.aa });
     this.composer = new EffectComposer(this.renderer, rt);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(window.innerWidth, window.innerHeight);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.5, 1.0);
+    // 블룸 '낮음': 흐림 사슬 전체를 절반 해상도에서 돌린다 (가장 비싼 후처리)
+    const bloomSize = this.bloom.setSize.bind(this.bloom);
+    this.bloom.setSize = (w: number, h: number) => {
+      const k = this.gfx.v.bloom >= 2 ? 1 : 0.5;
+      bloomSize(Math.max(2, Math.round(w * k)), Math.max(2, Math.round(h * k)));
+    };
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -147,7 +153,8 @@ class Game implements Host {
     this.player = new Player(this);
     this.hud = new Hud(this.camera);
     this.keyPanel = new KeyPanel(this.binds);
-    this.settings = new SettingsPanel(this.keyPanel, this.sfx);
+    this.settings = new SettingsPanel(this.keyPanel, this.sfx, this.gfx);
+    this.gfx.onChange((s) => this.applyGraphics(s));
     this.refreshKeyLabels();
     this.binds.onChange(() => this.refreshKeyLabels());
 
@@ -591,10 +598,39 @@ class Game implements Host {
     this.hud.setKeyLabels(this.binds.label('dash'), this.binds.label('special'));
   }
 
+  /** 렌더 해상도: 화면 픽셀 밀도(최대 1.5) × 그래픽 설정의 해상도 배율 */
+  private pixelRatio() {
+    return Math.min(window.devicePixelRatio || 1, 1.5) * this.gfx.v.scale;
+  }
+
+  /** 그래픽 설정을 렌더러 · 조명 · HUD 에 반영한다 (바뀐 것만 다시 만든다) */
+  private applied: Partial<GfxSettings> = {};
+  private applyGraphics(s: Readonly<GfxSettings>) {
+    const was = this.applied;
+    if (was.shadows !== s.shadows) this.arena.setShadowQuality(s.shadows);
+    if (was.lights !== s.lights) this.fx.setLightCount(FX_LIGHTS[s.lights]);
+    this.bloom.enabled = s.bloom > 0;
+    if (was.aa !== undefined && was.aa !== s.aa) {
+      // MSAA 샘플 수가 바뀌면 후처리 렌더타깃을 새로 만든다 (dispose 하면 다음 사용 때 새 설정으로 다시 할당된다)
+      for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+        t.samples = s.aa;
+        t.dispose();
+      }
+    }
+    // 블룸을 꺼도 HDR 렌더타깃은 유지한다: 가산 합성(불꽃·불빛 웅덩이)이 톤매핑 전에 더해져야 색이 같다
+    this.hud.showFps(s.fps);
+    const sizeChanged = was.scale !== s.scale || was.bloom !== s.bloom;
+    this.applied = { ...s };
+    if (sizeChanged) this.resize();
+  }
+
   private resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    const pr = this.pixelRatio();
+    this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h);
+    this.composer.setPixelRatio(pr);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -646,10 +682,6 @@ class Game implements Host {
       this.sfx.setMuted(!this.sfx.muted);
       this.hud.toast(this.sfx.muted ? '소리 꺼짐' : '소리 켜짐');
     }
-    if (this.input.hit('Backquote')) {
-      this.debugOn = !this.debugOn;
-      this.hud.toast(this.debugOn ? '디버그 표시 ON' : '디버그 표시 OFF');
-    }
 
     // 시간 배율: 일시정지 > 히트스톱(완전 정지) > 슬로모션
     let dt = raw;
@@ -666,10 +698,6 @@ class Game implements Host {
     } else if (this.slowT > 0) {
       this.slowT -= raw;
       dt = raw * this.slowScale;
-    }
-
-    if (this.state !== 'title') {
-      this.debugKeys();
     }
 
     this.updateLook(raw);
@@ -703,11 +731,7 @@ class Game implements Host {
       gauge: this.player.gauge / CFG.special.max,
       boss,
       bossReveal: reveal,
-      god: this.player.god,
-      muted: this.sfx.muted,
-      bossAttacks: this.boss?.attacksOn ?? true,
       fps: this.fps,
-      debug: this.debugOn && this.boss ? this.boss.status : '',
     });
   }
 
@@ -750,42 +774,6 @@ class Game implements Host {
     }
   }
 
-  /** 디버그 키: 보스 구현/튜닝 때 테스트 시간을 줄이기 위한 도구 */
-  private debugKeys() {
-    const i = this.input;
-    const boss = this.boss;
-    if (i.hit('Digit1')) {
-      this.player.god = !this.player.god;
-      this.hud.toast(this.player.god ? '무적 ON' : '무적 OFF');
-    }
-    if (i.hit('Digit2') && !this.player.dead) this.player.setHp(this.player.hp - 1);
-    if (i.hit('Digit3') && !this.player.dead) this.player.setHp(this.player.hp + 1);
-    if (i.hit('Digit4')) this.player.addCharge(CFG.special.max / CFG.special.chargePerDamage);
-    if (i.hit('Digit0')) this.startFight(false, (this.floor % FLOORS) + 1);
-    if (!boss) return;
-    if (i.hit('Digit5')) {
-      boss.attacksOn = !boss.attacksOn;
-      this.hud.toast(boss.attacksOn ? '보스 공격 ON' : '보스 공격 OFF');
-    }
-    if (i.hit('Digit6')) this.startFight(false);
-    if (i.hit('Digit7') && boss.alive) {
-      const next = boss.phaseMarks[boss.phaseIndex];
-      if (next === undefined) {
-        this.hud.toast('마지막 페이즈입니다');
-      } else {
-        boss.setHpFrac(next - 0.001);
-        this.hud.toast(`페이즈 ${boss.phaseIndex + 2} 진입 예약`);
-      }
-    }
-    if (i.hit('Digit8') && boss.alive) boss.setHpFrac(0.05);
-    if (i.hit('Digit9') && boss.alive && boss.ready) {
-      const names = boss.attackNames;
-      const name = names[this.debugAtk++ % names.length];
-      boss.forceAttack(name);
-      this.hud.toast(`다음 공격: ${name}`);
-    }
-  }
-
   /** 마우스/락온으로 카메라 방향(요·피치) 갱신 */
   private updateLook(raw: number) {
     const C = CFG.camera;
@@ -793,7 +781,7 @@ class Game implements Host {
     this.input.takeLook(look);
     const playing = !this.paused && this.state !== 'title' && this.state !== 'over' && this.state !== 'clear' && this.state !== 'next';
     const b = this.boss && this.boss.alive ? this.boss : null;
-    if (this.input.hit('MouseMiddle') || this.input.tapped('lockon')) {
+    if (this.input.tapped('lockon')) {
       if (playing && !this.input.hit('Escape')) {
         this.lockOn = !this.lockOn && !!b;
         this.hud.toast(this.lockOn ? '락온' : '락온 해제');
@@ -989,5 +977,7 @@ class Game implements Host {
 }
 
 const game = new Game();
-// 콘솔 디버깅용 (예: __game.player.setHp(1), __game.boss.forceAttack('pounce'))
+// 자동화 테스트(AI)용 핸들 — 게임 화면에는 드러나지 않는다.
+// 예: __game.manual = true; __game.advance(1/60) · __game.player.god = true · __game.boss.setHpFrac(0.05)
+//     __game.boss.forceAttack('pounce') · __game.boss.attacksOn = false · __game.startFight(false, 2)
 (window as unknown as { __game: Game }).__game = game;

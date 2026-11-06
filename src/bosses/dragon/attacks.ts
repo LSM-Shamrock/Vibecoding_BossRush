@@ -1427,8 +1427,8 @@ function roar(s: Dragon): AttackScript {
           const { host } = s;
           const pl = s.player;
           const q = pl.pos;
-          host.fx.ring(q.x, q.z, 24, 0.9, 0xff5a4a);
-          host.fx.ring(0, 0, 14, 0.6, 0xffb09a, 0.09);
+          host.fx.ring(q.x, q.z, 24, 0.9, 0xffffff);
+          host.fx.ring(0, 0, 14, 0.6, 0xffffff, 0.09);
           host.fx.burstLight(new V3(0, 4, 0), 0xff3a2a, 260, 0.9);
           host.shake(2.4, 0.4);
           host.flash(s.phaseIndex >= 2 ? '#2a0004' : '#ff5a3a', 0.45, 0.8);
@@ -1441,7 +1441,7 @@ function roar(s: Dragon): AttackScript {
       ...[1.1, 1.45, 1.8].map((at, i) => ({
         at,
         fn: () => {
-          s.host.fx.ring(0, 0, 28 + i * 8, 0.9, s.phaseIndex >= 2 ? 0x8a1020 : 0xff6a4a);
+          s.host.fx.ring(0, 0, 28 + i * 8, 0.9, 0xffffff);
           s.host.shake(1.4 - i * 0.3, 0.2);
           s.host.sfx.wingbeat(1.4);
           s.host.skyPulse?.(0.6);

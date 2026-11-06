@@ -393,8 +393,8 @@ function roar(s: Spider): AttackScript {
         at: 0.65,
         fn: () => {
           const { host, player, pos } = s;
-          host.fx.ring(pos.x, pos.z, 15, 0.9, 0xff5a4a);
-          host.fx.ring(pos.x, pos.z, 9, 0.6, 0xffb09a, 0.09);
+          host.fx.ring(pos.x, pos.z, 15, 0.9, 0xffffff);
+          host.fx.ring(pos.x, pos.z, 9, 0.6, 0xffffff, 0.09);
           host.fx.burstLight(new V3(pos.x, 3, pos.z), 0xff3a2a, 140, 0.9);
           host.shake(1.4);
           const d = Math.hypot(player.pos.x - pos.x, player.pos.z - pos.z);

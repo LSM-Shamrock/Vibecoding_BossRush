@@ -1,4 +1,4 @@
-import { ACTIONS, codeLabel, type ActionId, type Keybinds } from './keybinds';
+import { ACTIONS, codeLabel, GROUP_LABEL, MOUSE_CODES, type ActionGroup, type ActionId, type AssignResult, type Keybinds } from './keybinds';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -36,30 +36,7 @@ export class KeyPanel {
     const body = document.createElement('div');
     body.className = 'kp-body';
 
-    // 바꿀 수 없는 키: 위 표와 같은 칸 구조로 한 줄씩
-    const row = (label: string, value: string) => `<div class="kp-label">${label}</div><div class="kp-val">${value}</div>`;
-    const fixed = document.createElement('div');
-    fixed.className = 'kp-grid kp-fixed';
-    fixed.innerHTML =
-      row('시점 회전 / 조준', '마우스') +
-      row('락온', '마우스 휠 클릭') +
-      row('불꽃 쏘기', '왼쪽 버튼 (길게 눌러 모으고 떼면 발사)') +
-      row('설정 / 일시정지', 'Esc') +
-      row('확인', 'Enter · 클릭');
-
-    const dbg = document.createElement('details');
-    dbg.className = 'kp-debug';
-    dbg.innerHTML =
-      '<summary>디버그 키</summary><div class="kp-grid">' +
-      [
-        ['무적', '1'], ['체력 -1', '2'], ['체력 +1', '3'], ['특수 게이지 충전', '4'], ['보스 공격 켜기/끄기', '5'],
-        ['보스 재시작', '6'], ['다음 페이즈', '7'], ['보스 체력 5%', '8'], ['다음 공격 강제', '9'], ['다음 층 보스로', '0'], ['디버그 표시', '`'],
-      ]
-        .map(([l, k]) => row(l, `<b>${k}</b>`))
-        .join('') +
-      '</div>';
-
-    body.append(this.grid, fixed, dbg);
+    body.append(this.grid);
     this.el.append(top, body);
 
     this.el.addEventListener('click', (e) => {
@@ -107,6 +84,8 @@ export class KeyPanel {
     this.cancel(true);
     this.listen = { action, slot };
     window.addEventListener('keydown', this.onKey, true);
+    window.addEventListener('mousedown', this.onMouse, true);
+    window.addEventListener('contextmenu', this.noMenu, true);
     this.setMsg('바꿀 키를 누르세요 · Esc 취소 · Backspace 비우기', 'hint');
     this.render();
   }
@@ -115,6 +94,9 @@ export class KeyPanel {
     if (!this.listen) return;
     this.listen = null;
     window.removeEventListener('keydown', this.onKey, true);
+    window.removeEventListener('mousedown', this.onMouse, true);
+    // 우클릭으로 지정한 직후 뜨는 contextmenu 까지 막고 나서 해제한다
+    window.setTimeout(() => window.removeEventListener('contextmenu', this.noMenu, true), 0);
     if (!silent) {
       this.setMsg('', '');
       this.render();
@@ -132,6 +114,21 @@ export class KeyPanel {
       return;
     }
     const res = e.code === 'Backspace' || e.code === 'Delete' ? this.binds.clear(l.action, l.slot) : this.binds.assign(l.action, l.slot, e.code);
+    this.apply(res);
+  };
+
+  /** 입력 대기 중 휠 클릭 · 우클릭 → 그 버튼을 지정 (좌클릭은 다른 칸 선택용으로 그대로 둔다) */
+  private onMouse = (e: MouseEvent) => {
+    const l = this.listen;
+    const code = MOUSE_CODES[e.button];
+    if (!l || !code) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this.apply(this.binds.assign(l.action, l.slot, code));
+  };
+  private noMenu = (e: Event) => e.preventDefault();
+
+  private apply(res: AssignResult) {
     if (res.ok) {
       this.cancel(true);
       this.setMsg(res.msg, res.msg ? 'ok' : '');
@@ -139,7 +136,7 @@ export class KeyPanel {
       this.setMsg(res.msg, 'err'); // 계속 입력 대기
     }
     this.render();
-  };
+  }
 
   private setMsg(text: string, kind: 'ok' | 'err' | 'hint' | '') {
     this.msgEl.textContent = text;
@@ -149,18 +146,24 @@ export class KeyPanel {
 
   private render() {
     const l = this.listen;
-    this.grid.innerHTML =
-      `<div class="kp-th"></div><div class="kp-th">기본</div><div class="kp-th">보조</div>` +
-      ACTIONS.map((a, i) => {
-        const sep = i > 0 && ACTIONS[i - 1].group !== a.group ? ' kp-sep' : '';
-        const slots = this.binds.slots(a.id);
-        const cell = (slot: 0 | 1) => {
-          const code = slots[slot];
-          const on = !!l && l.action === a.id && l.slot === slot;
-          const cls = `keycap${on ? ' listening' : ''}${!code && !on ? ' empty' : ''}`;
-          return `<div class="kp-cell${sep}"><span class="${cls}" role="button" data-action="${a.id}" data-slot="${slot}">${on ? '키를 누르세요' : esc(codeLabel(code))}</span></div>`;
-        };
-        return `<div class="kp-label${sep}">${esc(a.label)}${a.hint ? `<small>${esc(a.hint)}</small>` : ''}</div>${cell(0)}${cell(1)}`;
-      }).join('');
+    const row = (a: (typeof ACTIONS)[number]) => {
+      const slots = this.binds.slots(a.id);
+      const cell = (slot: 0 | 1) => {
+        const code = slots[slot];
+        const on = !!l && l.action === a.id && l.slot === slot;
+        const cls = `keycap${on ? ' listening' : ''}${!code && !on ? ' empty' : ''}`;
+        return `<div class="kp-cell"><span class="${cls}" role="button" data-action="${a.id}" data-slot="${slot}">${on ? '키를 누르세요' : esc(codeLabel(code))}</span></div>`;
+      };
+      return `<div class="kp-label">${esc(a.label)}${a.hint ? `<small>${esc(a.hint)}</small>` : ''}</div>${cell(0)}${cell(1)}`;
+    };
+    // 불꽃 쏘기(좌클릭)는 바꿀 수 없는 키라 공격 묶음 맨 위에 값만 보여준다
+    const fixed = (label: string, value: string) => `<div class="kp-label">${label}</div><div class="kp-cell"><span class="keycap fixed">${value}</span></div><div class="kp-cell"></div>`;
+    let html = `<div class="kp-th"></div><div class="kp-th">기본</div><div class="kp-th">보조</div>`;
+    for (const g of Object.keys(GROUP_LABEL) as ActionGroup[]) {
+      html += `<div class="kp-sec">${GROUP_LABEL[g]}</div>`;
+      if (g === 'combat') html += fixed('불꽃 쏘기', '좌클릭');
+      for (const a of ACTIONS) if (a.group === g) html += row(a);
+    }
+    this.grid.innerHTML = html;
   }
 }

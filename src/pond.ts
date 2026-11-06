@@ -592,6 +592,8 @@ export class Pond {
   private lanterns: Lantern[] = [];
   /** 진짜 점광원은 4개뿐(조명 수가 바뀌면 셰이더를 다시 컴파일한다). 플레이어와 가까운 석등으로 부드럽게 옮겨 다닌다 */
   private lights: { l: THREE.PointLight; idx: number }[] = [];
+  private nearI = new Int32Array(8);
+  private nearD = new Float64Array(8);
   private floorGlow: THREE.MeshBasicMaterial;
   private water: THREE.MeshStandardMaterial;
   private rippleTex: THREE.Texture;
@@ -1068,10 +1070,39 @@ export class Pond {
       (l.pool.material as THREE.MeshBasicMaterial).opacity = 0.14 + 0.08 * f;
     }
     // 플레이어 가까운 석등 4개에 진짜 빛을 붙인다 (이미 맡은 석등이 4위 안이면 그대로)
-    const order = this.lanterns.map((l, i) => ({ i, d: (l.x - fx) * (l.x - fx) + (l.z - fz) * (l.z - fz) })).sort((a, b) => a.d - b.d);
-    const want = new Set(order.slice(0, this.lights.length).map((o) => o.i));
-    const free = order.slice(0, this.lights.length).map((o) => o.i).filter((i) => !this.lights.some((s) => s.idx === i));
-    for (const s of this.lights) if (!want.has(s.idx)) s.idx = free.shift() ?? s.idx;
+    // (매 프레임 도는 곳이라 배열·Set 을 새로 만들지 않고 미리 잡아 둔 버퍼를 쓴다)
+    const near = this.nearI;
+    const nd = this.nearD;
+    const nl = this.lights.length;
+    let cnt = 0;
+    for (let i = 0; i < this.lanterns.length; i++) {
+      const l = this.lanterns[i];
+      const d = (l.x - fx) * (l.x - fx) + (l.z - fz) * (l.z - fz);
+      // 가까운 nl 개만 거리순으로 유지 (삽입 정렬)
+      if (cnt === nl && d >= nd[nl - 1]) continue;
+      let j = cnt < nl ? cnt++ : nl - 1;
+      while (j > 0 && nd[j - 1] > d) {
+        near[j] = near[j - 1];
+        nd[j] = nd[j - 1];
+        j--;
+      }
+      near[j] = i;
+      nd[j] = d;
+    }
+    const isNear = (idx: number) => {
+      for (let k = 0; k < cnt; k++) if (near[k] === idx) return true;
+      return false;
+    };
+    for (const s of this.lights) {
+      if (isNear(s.idx)) continue;
+      for (let k = 0; k < cnt; k++) {
+        const i = near[k];
+        if (!this.lights.some((o) => o.idx === i)) {
+          s.idx = i;
+          break;
+        }
+      }
+    }
     const kk = 1 - Math.exp(-5 * dt);
     for (const s of this.lights) {
       const lt = this.lanterns[s.idx];

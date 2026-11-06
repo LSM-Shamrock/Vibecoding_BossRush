@@ -879,8 +879,8 @@ function roar(s: Serpent): AttackScript {
         fn: () => {
           const { host, player } = s;
           const p = s.headPos;
-          host.fx.ring(p.x, p.z, 20, 0.9, 0xff5a4a);
-          host.fx.ring(p.x, p.z, 11, 0.6, 0xffb09a, 0.09);
+          host.fx.ring(p.x, p.z, 20, 0.9, 0xffffff);
+          host.fx.ring(p.x, p.z, 11, 0.6, 0xffffff, 0.09);
           host.fx.burstLight(new V3(p.x, 3, p.z), 0xff3a2a, 150, 0.9);
           host.shake(2.4);
           host.flash(s.phaseIndex >= 2 ? '#2a0004' : '#ff5a3a', 0.45, 0.8);
@@ -895,7 +895,7 @@ function roar(s: Serpent): AttackScript {
         at,
         fn: () => {
           const p = s.headPos;
-          s.host.fx.ring(p.x, p.z, 26 + i * 8, 0.9, s.phaseIndex >= 2 ? 0x8a1020 : 0xff6a4a);
+          s.host.fx.ring(p.x, p.z, 26 + i * 8, 0.9, 0xffffff);
           s.host.shake(1.5 - i * 0.35);
           s.host.sfx.land();
         },

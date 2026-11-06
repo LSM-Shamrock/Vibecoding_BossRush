@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ActionId, Keybinds } from './keybinds';
+import { MOUSE_CODES, type ActionId, type Keybinds } from './keybinds';
 
 /** 설정과 무관하게 브라우저 기본 동작(스크롤/포커스 이동)을 막을 키 */
 const ALWAYS_PREVENT = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
@@ -37,22 +37,32 @@ export class Input {
     el.addEventListener('pointerdown', (e) => {
       this.setMouse(e);
       if (e.button === 0) this.mouseDown = true;
-      if (e.button === 1) {
-        e.preventDefault();
-        this.pressed.add('MouseMiddle');
-      }
     });
     window.addEventListener('pointerup', (e) => {
       if (e.button === 0) this.mouseDown = false;
     });
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // 휠 클릭 · 우클릭은 키처럼 다룬다 (키 설정에 'MouseMiddle' / 'MouseRight' 로 지정).
+    // pointerdown 은 다른 버튼을 누르고 있는 동안 새 버튼에 대해 오지 않으므로(좌클릭 충전 중 우클릭) mousedown 을 쓴다.
+    el.addEventListener('mousedown', (e) => {
+      const code = MOUSE_CODES[e.button];
+      if (!code) return;
+      e.preventDefault();
+      this.pressed.add(code);
+      this.keys.add(code);
+    });
+    window.addEventListener('mouseup', (e) => {
+      const code = MOUSE_CODES[e.button];
+      if (code) this.keys.delete(code);
+    });
+    // 화면 어디서든(메뉴 · HUD 위 포함) 브라우저 우클릭 메뉴를 막는다
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   private setMouse(e: PointerEvent) {
     this.mouseNDC.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   }
 
-  /** 물리 키 코드로 직접 조회 (Esc/Enter/디버그 키처럼 설정과 무관한 키) */
+  /** 물리 키 코드로 직접 조회 (Esc/Enter 처럼 설정과 무관한 키) */
   down(code: string) {
     return this.keys.has(code);
   }

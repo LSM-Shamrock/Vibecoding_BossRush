@@ -255,10 +255,24 @@ export class Fx {
   constructor(private scene: THREE.Scene) {
     this.particles = new Particles(scene, CFG.fx.maxParticles);
     this.telegraphs = new Telegraphs(scene);
-    for (let i = 0; i < 4; i++) {
+    this.setLightCount(4);
+  }
+
+  /**
+   * 순간 조명 개수 (그래픽 설정). 꺼져 있는(세기 0) 점광원도 모든 픽셀의 셰이더 비용을 먹으므로
+   * 저사양에서는 개수를 줄인다. 개수가 바뀌면 셰이더를 한 번 다시 컴파일한다(설정을 바꿀 때만).
+   */
+  setLightCount(n: number) {
+    n = Math.max(1, Math.floor(n));
+    while (this.lights.length < n) {
       const light = new THREE.PointLight(0xffffff, 0, 16, 1.6);
-      scene.add(light);
+      this.scene.add(light);
       this.lights.push({ light, t: 0, dur: 1, peak: 0 });
+    }
+    while (this.lights.length > n) {
+      const l = this.lights.pop()!;
+      this.scene.remove(l.light);
+      l.light.dispose();
     }
   }
 

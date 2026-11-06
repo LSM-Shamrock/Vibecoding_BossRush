@@ -735,6 +735,19 @@ export class Arena {
     this.sun.target.updateMatrixWorld();
   }
 
+  /** 그래픽 설정: 그림자 0 끄기 / 1 낮음(1024) / 2 높음(2048) */
+  setShadowQuality(level: 0 | 1 | 2) {
+    const sun = this.sun;
+    // 그림자를 끄면 셰이더에서 그림자 샘플링 자체가 빠진다 (조명 상태가 바뀌어 한 번 다시 컴파일)
+    sun.castShadow = level > 0;
+    const size = level >= 2 ? 2048 : 1024;
+    if (sun.shadow.mapSize.x !== size) {
+      sun.shadow.mapSize.set(size, size);
+      sun.shadow.map?.dispose();
+      sun.shadow.map = null; // 다음 그림자 패스에서 새 크기로 다시 만든다
+    }
+  }
+
   /** 3층: 하늘이 번쩍 (포효 · 큰 기술) */
   skyPulse(k = 1) {
     if (this.theme === 3) this.volcano?.pulse(k);
